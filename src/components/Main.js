@@ -6,7 +6,7 @@ import Button from 'react-bootstrap/Button'
 
 import Form from 'react-bootstrap/Form'
 import FormControl from 'react-bootstrap/FormControl'
-import { GoogleMap, useJsApiLoader } from '@react-google-maps/api'
+import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api'
 
 
 const containerStyle = {
@@ -19,25 +19,30 @@ const center = {
     lng: -86.908
 };
 
-const options = {
-    method: 'GET',
-    mode: 'cors'
-}
+
+//const center = new window.google.maps.LatLngBounds(-40.425, -86.908);
+
+const libraries = ["places"]
 function Main() {
 
     const { isLoaded } = useJsApiLoader({
         id: id,
-        googleMapsApiKey: key
+        googleMapsApiKey: key,
+        libraries: libraries
     })
 
     const [map, setMap] = React.useState(null)
     const [value, setValue] = React.useState('');
+    const [places, setPlaces] = React.useState(null);
     const [nearby, setNearby] = React.useState(null);
-    const [error, setError] = React.useState(null);
+    const [markers, setMarkers] = React.useState([]);
 
     const onLoad = React.useCallback(function callback(map) {
       const bounds = new window.google.maps.LatLngBounds();
       map.fitBounds(bounds);
+
+      const service = new window.google.maps.places.PlacesService(map)
+      setPlaces(service)
       setMap(map)
     }, [])
   
@@ -49,26 +54,33 @@ function Main() {
   const fetchNearby = (type) => {
     if(map.zoom >= 12) {
         console.log("Fetching for places of type ", type);
-        const lat = map.center.lat();
-        const lng = map.center.lng();
-        //TODO: fix cors issue
-        fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=${type}&key=${key}`, options)
-        .then(response => {
-            if(response.ok) {
-                return response.json()
-            }
-            throw response
+        const request = {
+            location: map.center,
+            radius: 3000,
+            type: [type]
+        }
+        
+        places.nearbySearch(request, (results, status) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+                console.log(results)
+                setNearby(results)
+                createMarkers(results)
+            } else {
+                console.error("There was a problem with the places request");
+            }           
         })
-        .then(data => {
-            setNearby(data);
-        })
-        .catch(error => {
-            console.error("Error fetching nearby places: ", error);
-            setError(error);
-        })
+
     } else {
         console.log("Map is not zoomed in enough to fetch nearby places! TODO: implemented easy error alert");
     }
+  }
+
+  const createMarkers = (results) => {
+    const new_markers = []
+    for(const place in results) {
+        new_markers.push(<Marker key={place} position={results[place].geometry.location} />)
+    }
+    setMarkers(new_markers)
   }
 
   return (
@@ -78,12 +90,11 @@ function Main() {
            <GoogleMap
                 mapContainerStyle={containerStyle}
                 center={center}
-                zoom={10}
+                zoom={3}
                 onLoad={onLoad}
                 onUnmount={onUnmount}
            >
-           { /* Child components, such as markers, info windows, etc. */ }
-           <></>
+           { markers.length > 0 ? markers.map(el => el) : [] }
            </GoogleMap>
         }
         <Form onSubmit={(ev) => {
