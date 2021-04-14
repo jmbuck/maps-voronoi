@@ -19,6 +19,10 @@ const center = {
     lng: -86.908
 };
 
+const options = {
+    method: 'GET',
+    mode: 'cors'
+}
 function Main() {
 
     const { isLoaded } = useJsApiLoader({
@@ -27,7 +31,9 @@ function Main() {
     })
 
     const [map, setMap] = React.useState(null)
-    const [value, setValue] = React.useState(null);
+    const [value, setValue] = React.useState('');
+    const [nearby, setNearby] = React.useState(null);
+    const [error, setError] = React.useState(null);
 
     const onLoad = React.useCallback(function callback(map) {
       const bounds = new window.google.maps.LatLngBounds();
@@ -42,8 +48,24 @@ function Main() {
 
   const fetchNearby = (type) => {
     if(map.zoom >= 12) {
+        console.log("Fetching for places of type ", type);
         const lat = map.center.lat();
         const lng = map.center.lng();
+        //TODO: fix cors issue
+        fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=3000&type=${type}&key=${key}`, options)
+        .then(response => {
+            if(response.ok) {
+                return response.json()
+            }
+            throw response
+        })
+        .then(data => {
+            setNearby(data);
+        })
+        .catch(error => {
+            console.error("Error fetching nearby places: ", error);
+            setError(error);
+        })
     } else {
         console.log("Map is not zoomed in enough to fetch nearby places! TODO: implemented easy error alert");
     }
