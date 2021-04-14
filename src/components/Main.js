@@ -7,7 +7,7 @@ import Button from 'react-bootstrap/Button'
 import Form from 'react-bootstrap/Form'
 import FormControl from 'react-bootstrap/FormControl'
 import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api'
-
+import { Delaunay } from 'd3-delaunay'
 
 const containerStyle = {
     width: '800px',
@@ -36,6 +36,8 @@ function Main() {
     const [places, setPlaces] = React.useState(null);
     const [nearby, setNearby] = React.useState(null);
     const [markers, setMarkers] = React.useState([]);
+    const [points, setPoints] = React.useState([]);
+    const [voronoi_bounds, setVoronoiBounds] = React.useState([]);
 
     const onLoad = React.useCallback(function callback(map) {
       const bounds = new window.google.maps.LatLngBounds();
@@ -62,7 +64,6 @@ function Main() {
         
         places.nearbySearch(request, (results, status) => {
             if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-                console.log(results)
                 setNearby(results)
                 createMarkers(results)
             } else {
@@ -77,10 +78,40 @@ function Main() {
 
   const createMarkers = (results) => {
     const new_markers = []
+    const new_points = []
+    //lat is considered y coord, lng is x coord
+    let min_lat = null;
+    let max_lat = null;
+    let min_lng = null;
+    let max_lng = null;
     for(const place in results) {
         new_markers.push(<Marker key={place} position={results[place].geometry.location} />)
+        const lat = results[place].geometry.location.lat()
+        const lng = results[place].geometry.location.lng()
+
+        if(!min_lat || lat < min_lat) min_lat = lat;
+        if(!max_lat || lat > max_lat) max_lat = lat;
+        if(!min_lng || lng < min_lng) min_lng = lng;
+        if(!max_lng || lng > max_lng) max_lng = lng;
+
+        console.log(results[place].name, lng, lat)
+        points.push([lng, lat])
     }
     setMarkers(new_markers)
+    setPoints(points)
+    setVoronoiBounds([min_lng - 0.01, min_lat - 0.01, max_lng + 0.01, max_lat + 0.01])
+  }
+
+  const generateVoronoi = () => {
+      if(markers.length == 0) {
+          console.log("Must generate some markers on the graph first!")
+          return;
+      }
+
+      console.log("Generating voronoi diagram...")
+      const delaunay = Delaunay.from(points)
+      const voronoi = delaunay.voronoi(voronoi_bounds)
+      console.log(voronoi)
   }
 
   return (
@@ -106,9 +137,7 @@ function Main() {
             <FormControl onChange={(ev) => {setValue(ev.target.value)}} name="type" type="text" placeholder="Enter a place type (e.g. hospitals)" className="search-box mr-sm-2" />
             <Button type="submit" variant="outline-info">Find Places</Button>
         </Form>
-        <Button onClick={() => {
-            console.log(map);
-        }}variant="outline-info">Generate Voronoi Diagram</Button>
+        <Button onClick={generateVoronoi} variant="outline-info">Generate Voronoi Diagram</Button>
     </div>
   );
 }
