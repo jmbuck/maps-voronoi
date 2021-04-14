@@ -1,2 +1,3 @@
-const key = 'YOU MAPS API KEY HERE'
-export default key
+const key = 'YOUR MAPS API KEY HERE'
+const id = 'YOUR MAPS PROJECT ID HERE'
+export { key, id }
