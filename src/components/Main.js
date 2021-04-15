@@ -6,7 +6,7 @@ import Button from 'react-bootstrap/Button'
 
 import Form from 'react-bootstrap/Form'
 import FormControl from 'react-bootstrap/FormControl'
-import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api'
+import { GoogleMap, Marker, useJsApiLoader, Polygon } from '@react-google-maps/api'
 import { Delaunay } from 'd3-delaunay'
 
 const containerStyle = {
@@ -23,6 +23,20 @@ const center = {
 //const center = new window.google.maps.LatLngBounds(-40.425, -86.908);
 
 const libraries = ["places"]
+
+const options = {
+    fillColor: "lightblue",
+    fillOpacity: 0,
+    strokeColor: "red",
+    strokeOpacity: 1,
+    strokeWeight: 1,
+    clickable: false,
+    draggable: false,
+    editable: false,
+    geodesic: false,
+    zIndex: 1
+}
+
 function Main() {
 
     const { isLoaded } = useJsApiLoader({
@@ -38,6 +52,7 @@ function Main() {
     const [markers, setMarkers] = React.useState([]);
     const [points, setPoints] = React.useState([]);
     const [voronoi_bounds, setVoronoiBounds] = React.useState([]);
+    const [polygons, setPolygons] = React.useState([]);
 
     const onLoad = React.useCallback(function callback(map) {
       const bounds = new window.google.maps.LatLngBounds();
@@ -51,7 +66,6 @@ function Main() {
     const onUnmount = React.useCallback(function callback(map) {
       setMap(null)
     }, [])
-
 
   const fetchNearby = (type) => {
     if(map.zoom >= 12) {
@@ -102,6 +116,14 @@ function Main() {
     setVoronoiBounds([min_lng - 0.01, min_lat - 0.01, max_lng + 0.01, max_lat + 0.01])
   }
 
+  const createPolygon = (polygon, key) => {
+        const paths = []
+        for(const point of polygon) {
+            paths.push({lat: point[1], lng: point[0] })
+        }
+        return <Polygon key={key} paths={paths} options={options} />
+  }
+
   const generateVoronoi = () => {
       if(markers.length == 0) {
           console.log("Must generate some markers on the graph first!")
@@ -112,6 +134,14 @@ function Main() {
       const delaunay = Delaunay.from(points)
       const voronoi = delaunay.voronoi(voronoi_bounds)
       console.log(voronoi)
+      const cell_polygons = voronoi.cellPolygons();
+      const new_polygons = []
+      let i = 0
+      for(const polygon of cell_polygons) {
+          new_polygons.push(createPolygon(polygon, i))
+          i++
+      }
+      setPolygons(new_polygons)
   }
 
   return (
@@ -126,6 +156,7 @@ function Main() {
                 onUnmount={onUnmount}
            >
            { markers.length > 0 ? markers.map(el => el) : [] }
+           { polygons.length > 0 ? polygons.map(el => el) : [] }
            </GoogleMap>
         }
         <Form onSubmit={(ev) => {
