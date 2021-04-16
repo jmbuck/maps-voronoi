@@ -6,7 +6,7 @@ import Button from 'react-bootstrap/Button'
 
 import Form from 'react-bootstrap/Form'
 import FormControl from 'react-bootstrap/FormControl'
-import { GoogleMap, Marker, useJsApiLoader, Polygon } from '@react-google-maps/api'
+import { GoogleMap, Marker, useJsApiLoader, Polygon, Circle } from '@react-google-maps/api'
 import { Delaunay } from 'd3-delaunay'
 
 const containerStyle = {
@@ -37,6 +37,19 @@ const options = {
     zIndex: 1
 }
 
+const circleOptions = {
+    fillColor: "red",
+    fillOpacity: 1,
+    strokeColor: "red",
+    strokeOpacity: 1,
+    strokeWeight: 1,
+    clickable: false,
+    draggable: false,
+    editable: false,
+    geodesic: false,
+    zIndex: 1
+}
+
 function Main() {
 
     const { isLoaded } = useJsApiLoader({
@@ -46,13 +59,15 @@ function Main() {
     })
 
     const [map, setMap] = React.useState(null)
-    const [value, setValue] = React.useState('');
-    const [places, setPlaces] = React.useState(null);
-    const [nearby, setNearby] = React.useState(null);
-    const [markers, setMarkers] = React.useState([]);
-    const [points, setPoints] = React.useState([]);
-    const [voronoi_bounds, setVoronoiBounds] = React.useState([]);
-    const [polygons, setPolygons] = React.useState([]);
+    const [value, setValue] = React.useState('')
+    const [places, setPlaces] = React.useState(null)
+    const [markers, setMarkers] = React.useState([])
+    const [points, setPoints] = React.useState([])
+    const [voronoi_bounds, setVoronoiBounds] = React.useState([])
+    const [circles, setCircles] = React.useState([])
+    const [polygons, setPolygons] = React.useState([])
+    const [showMarkers, setShowMarkers] = React.useState(true)
+    const [showDiagram, setShowDiagram] = React.useState(true)
 
     const onLoad = React.useCallback(function callback(map) {
       const bounds = new window.google.maps.LatLngBounds();
@@ -65,6 +80,10 @@ function Main() {
   
     const onUnmount = React.useCallback(function callback(map) {
       setMap(null)
+      setPlaces(null)
+      setValue('')
+      clearDiagram()
+      clearMarkers()
     }, [])
 
   const fetchNearby = (type) => {
@@ -73,12 +92,12 @@ function Main() {
         const request = {
             location: map.center,
             radius: 3000,
-            type: [type]
+            type: [type],
+            rankby: 'distance'
         }
         
         places.nearbySearch(request, (results, status) => {
             if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-                setNearby(results)
                 createMarkers(results)
             } else {
                 console.error("There was a problem with the places request");
@@ -124,6 +143,15 @@ function Main() {
         return <Polygon key={key} paths={paths} options={options} />
   }
 
+  const clearMarkers = () => {
+    setMarkers([])
+  }
+
+  const clearDiagram = () => {
+    setPolygons([])
+    setCircles([])
+  }
+
   const generateVoronoi = () => {
       if(markers.length == 0) {
           console.log("Must generate some markers on the graph first!")
@@ -133,15 +161,24 @@ function Main() {
       console.log("Generating voronoi diagram...")
       const delaunay = Delaunay.from(points)
       const voronoi = delaunay.voronoi(voronoi_bounds)
-      console.log(voronoi)
+
       const cell_polygons = voronoi.cellPolygons();
       const new_polygons = []
+      const new_circles = []
       let i = 0
       for(const polygon of cell_polygons) {
           new_polygons.push(createPolygon(polygon, i))
+          new_circles.push(<Circle 
+                                key={i} 
+                                radius={3} 
+                                center={{ lat: points[i][1], lng: points[i][0]}} 
+                                options={circleOptions}
+                            />)
           i++
       }
+
       setPolygons(new_polygons)
+      setCircles(new_circles)
   }
 
   return (
@@ -156,6 +193,7 @@ function Main() {
                 onUnmount={onUnmount}
            >
            { markers.length > 0 ? markers.map(el => el) : [] }
+           { circles.length > 0 ? circles.map(el => el) : [] }
            { polygons.length > 0 ? polygons.map(el => el) : [] }
            </GoogleMap>
         }
@@ -169,6 +207,8 @@ function Main() {
             <Button type="submit" variant="outline-info">Find Places</Button>
         </Form>
         <Button onClick={generateVoronoi} variant="outline-info">Generate Voronoi Diagram</Button>
+        <Button onClick={clearMarkers} variant="outline-info">Clear Markers</Button>
+        <Button onClick={clearDiagram} variant="outline-info">Clear Voronoi Diagram</Button>
     </div>
   );
 }
