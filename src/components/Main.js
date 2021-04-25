@@ -343,6 +343,10 @@ function Main() {
             }
 
             if(state && isState) {
+                if(country.short !== "US") {
+                    console.error("Cannot add state markers outside the US")
+                    alert("Cannot add state markers outside the US")
+                }
                 const state_cities = usData.filter(city => city[3] === state && parseInt(city[8]) >= 1000 )
     
                 createCitiesMarkers(state_cities, false)
@@ -373,6 +377,8 @@ function Main() {
           alert("Must generate some markers on the graph first!")
           return;
       }
+
+      console.log("Generating Voronoi diagram...")
 
       resetDiagram()
 
