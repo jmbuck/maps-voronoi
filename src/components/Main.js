@@ -1,7 +1,9 @@
 import '../css/Main.css'
 import { key, id } from '../secret'
+import citiesCSV from '../data/uscities.csv'
 
 import React from 'react'
+import { readString } from 'react-papaparse';
 import Button from 'react-bootstrap/Button'
 import ButtonGroup from 'react-bootstrap/ButtonGroup'
 
@@ -52,19 +54,24 @@ const circleOptions = {
     zIndex: 1
 }
 
-/* TODO Friday:
-    Sort out bug with odd diagram for subsequent requests
-    Clean up console prints
-    Add geometric representation
-    Add city support
-    Improve UI/UX
-    Get more results (?)
-    Etc etc
+  /* TODO:
+  Finish state city support
+  Finish US city support
+  Add footer
+  */
 
-
-
-
+/* US Cities CSV Rows Reference: *
+    Index 0: city unicode
+    Index 1: city ascii
+    Index 2: state id
+    Index 3: state_name
+    Index 4: country_fips
+    Index 5: county_name
+    Index 6: lat
+    Index 7: lng
+    Index 8: population
 */
+
 function Main() {
 
     const { isLoaded } = useJsApiLoader({
@@ -72,6 +79,7 @@ function Main() {
         googleMapsApiKey: key,
         libraries: libraries
     })
+
 
     const [map, setMap] = React.useState(null)
     const [value, setValue] = React.useState('')
@@ -85,6 +93,26 @@ function Main() {
     const [showMarkers, setShowMarkers] = React.useState(true)
     const [showDiagram, setShowDiagram] = React.useState(true)
     const [isNearbySearch, setIsNearbySearch] = React.useState(true)
+    const [citiesData, setCitiesData] = React.useState(null)
+
+
+    React.useEffect(() => {
+        if(!citiesData) {
+            console.log("Loading Cities database...")
+            const papaConfig = {
+                complete: (results, file) => {
+                  console.log('Cities parsing complete')
+                  setCitiesData(results.data)
+                },
+                download: true,
+                error: (error, file) => {
+                  console.error('Error while parsing cities:', error, file);
+                },
+              };
+            
+            readString(citiesCSV, papaConfig);
+        }
+    }, [])
 
     const onLoad = React.useCallback((map) => {
       console.log(window.google.maps)
@@ -183,6 +211,36 @@ function Main() {
     setVoronoiBounds([min_lng - 0.01, min_lat - 0.01, max_lng + 0.01, max_lat + 0.01])
   }
 
+  const createCitiesMarkers = (cities) => {
+    resetMarkers()
+    const new_markers = []
+
+    //lat is considered y coord, lng is x coord
+    let min_lat = null;
+    let max_lat = null;
+    let min_lng = null;
+    let max_lng = null;
+    for(const city of cities) {
+
+        const lat = parseFloat(city[6])
+        const lng = parseFloat(city[7])
+
+        new_markers.push(<Marker key={city[1] + city[8]} position={{ lat, lng }} />)
+
+
+        if(!min_lat || lat < min_lat) min_lat = lat;
+        if(!max_lat || lat > max_lat) max_lat = lat;
+        if(!min_lng || lng < min_lng) min_lng = lng;
+        if(!max_lng || lng > max_lng) max_lng = lng;
+
+        points.push([lng, lat])
+    }
+
+    setMarkers(new_markers)
+    setPoints(points)
+    setVoronoiBounds([min_lng - 0.1, min_lat - 0.1, max_lng + 0.1, max_lat + 0.1])   
+  }
+
   const createPolygon = (polygon, key) => {
         const paths = []
         for(const point of polygon) {
@@ -210,7 +268,12 @@ function Main() {
   }
 
   const filterCities = (state) => {
-
+    console.log(state)
+    // Filter cities by state and population at least 1000
+    const state_cities = citiesData.filter(city => city[3] === state && parseInt(city[8]) >= 1000 )
+    
+    createCitiesMarkers(state_cities)
+    console.log(state_cities)
   }
 
   const getStateCities = () => {
@@ -230,11 +293,26 @@ function Main() {
       geocoder.geocode(request, (results, status) => {
 
           if (status === "OK") {
+            let state;
             for(const area of results) {
                 if(area.types.includes("administrative_area_level_1")) {
-                    const state = area.address_components[0].long_name
-                    filterCities(state)
+                    state = area.address_components[0].long_name
+                  
                 }
+                if(area.types.includes("country")) {
+                    if(area.address_components[0].short_name !== "US") {
+                        console.error("Cannot add city markers outside the US")
+                        alert("Cannot add city markers outside the US")
+                        return;
+                    }
+                }
+            }
+
+            if(state) {
+                filterCities(state)
+            } else {
+                console.error("Cannot add city markers outside the US")
+                alert("Cannot add city markers outside the US")
             }
           } else {
               console.error("There was a problem with the places request: ", status);

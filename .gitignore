@@ -15,7 +15,7 @@
 /src/secret.js 
 
 # data
-/data
+src/data
 
 # misc
 .DS_Store
