@@ -55,11 +55,6 @@ const circleOptions = {
     zIndex: 1
 }
 
-  /* TODO:
-  Add world city support
-  Add footer
-  */
-
 /* US Cities CSV Columns Reference:
     Index 0: city unicode
     Index 1: city ascii
