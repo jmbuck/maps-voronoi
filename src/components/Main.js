@@ -7,6 +7,7 @@ import ButtonGroup from 'react-bootstrap/ButtonGroup'
 
 import Form from 'react-bootstrap/Form'
 import FormControl from 'react-bootstrap/FormControl'
+import InputGroup from 'react-bootstrap/InputGroup'
 import { GoogleMap, Marker, useJsApiLoader, Polygon, Circle } from '@react-google-maps/api'
 import { Delaunay } from 'd3-delaunay'
 
@@ -82,6 +83,7 @@ function Main() {
     const [polygons, setPolygons] = React.useState([])
     const [showMarkers, setShowMarkers] = React.useState(true)
     const [showDiagram, setShowDiagram] = React.useState(true)
+    const [isNearbySearch, setIsNearbySearch] = React.useState(true)
 
     const onLoad = React.useCallback((map) => {
       const service = new window.google.maps.places.PlacesService(map)
@@ -100,8 +102,6 @@ function Main() {
     if(map.zoom >= 12) {
         resetMap()
         console.log("Fetching for places of type ", type);
-        console.log(map.center.lat(), map.center.lng())
-        console.log(map.zoom)
         const request = {
             location: map.center,
             radius: 3000,
@@ -111,6 +111,32 @@ function Main() {
         
         places.nearbySearch(request, (results, status) => {
             if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+                createMarkers(results)
+            } else {
+                console.error("There was a problem with the places request");
+                alert("There was a problem with the places request")
+            }           
+        })
+
+    } else {
+        console.error("Map is not zoomed in enough to fetch nearby places!");
+        alert("Map is not zoomed in enough to fetch nearby places!");
+    }
+  }
+
+  const fetchKeyword = (keyword) => {
+    if(map.zoom >= 12) {
+        resetMap()
+        console.log("Fetching for places with keyword ", keyword);
+        const request = {
+            query: keyword,
+            location: map.center,
+            radius: 3000
+        }
+        
+        places.textSearch(request, (results, status) => {
+            if (status === window.google.maps.places.PlacesServiceStatus.OK) {
+                console.log(results)
                 createMarkers(results)
             } else {
                 console.error("There was a problem with the places request");
@@ -229,12 +255,37 @@ function Main() {
            </GoogleMap>
         }
 
+        <ButtonGroup className="search-buttons">
+            <Button 
+                onClick={() => {
+                    if(!isNearbySearch) setIsNearbySearch(true)
+                }}
+                variant={isNearbySearch ? "success" : "outline-success"}
+            >Search By Type</Button>
+            <Button 
+                onClick={() => {
+                    if(isNearbySearch) setIsNearbySearch(false)
+                }}
+                variant={!isNearbySearch ? "success" : "outline-success"}
+            >Search By Keyword</Button>
+        </ButtonGroup>
+
         <Form onSubmit={(ev) => {
             ev.preventDefault();
-            fetchNearby(value);
+            if(isNearbySearch) {
+                fetchNearby(value);
+            } else {
+                fetchKeyword(value);
+            }
+            
         }}
         className="search-form" inline>
-            <FormControl onChange={(ev) => {setValue(ev.target.value)}} name="type" type="text" placeholder="Enter a place type (e.g. hospitals)" className="search-box mr-sm-2" />
+            <FormControl 
+                onChange={(ev) => {setValue(ev.target.value)}} 
+                name="type" 
+                type="text" 
+                placeholder={isNearbySearch ? "Enter a place type (e.g. hospital)" : "Enter a keyword or query to search with"} 
+                className="search-box mr-sm-2" />
             <Button type="submit" variant="info">Find Places</Button>
         </Form>
         </div>

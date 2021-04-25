@@ -18,3 +18,7 @@
 .Main .search-form .btn {
     width: 28% !important;
 }
+
+.Main .search-buttons {
+    margin-top: 1rem;
+}
