@@ -1,6 +1,7 @@
 import '../css/Main.css'
 import { key, id } from '../secret'
-import citiesCSV from '../data/uscities.csv'
+import usCSV from '../data/uscities.csv'
+import worldCSV from '../data/worldcities.csv'
 
 import React from 'react'
 import { readString } from 'react-papaparse';
@@ -55,12 +56,11 @@ const circleOptions = {
 }
 
   /* TODO:
-  Finish state city support
-  Finish US city support
+  Add world city support
   Add footer
   */
 
-/* US Cities CSV Rows Reference: *
+/* US Cities CSV Columns Reference:
     Index 0: city unicode
     Index 1: city ascii
     Index 2: state id
@@ -70,6 +70,17 @@ const circleOptions = {
     Index 6: lat
     Index 7: lng
     Index 8: population
+*/
+
+/* World Cities CSV Columns Reference:
+    Index 0: city unicode
+    Index 1: city ascii
+    Index 2: lat
+    Index 3: lng
+    Index 4: country
+    Index 5: iso2
+    Index 6: iso3
+    Index 9: population
 */
 
 function Main() {
@@ -93,26 +104,43 @@ function Main() {
     const [showMarkers, setShowMarkers] = React.useState(true)
     const [showDiagram, setShowDiagram] = React.useState(true)
     const [isNearbySearch, setIsNearbySearch] = React.useState(true)
-    const [citiesData, setCitiesData] = React.useState(null)
+    const [usData, setUsData] = React.useState(null)
+    const [worldData, setWorldData] = React.useState(null)
 
 
     React.useEffect(() => {
-        if(!citiesData) {
-            console.log("Loading Cities database...")
-            const papaConfig = {
-                complete: (results, file) => {
-                  console.log('Cities parsing complete')
-                  setCitiesData(results.data)
-                },
-                download: true,
-                error: (error, file) => {
-                  console.error('Error while parsing cities:', error, file);
-                },
-              };
-            
-            readString(citiesCSV, papaConfig);
-        }
-    }, [citiesData])
+    
+        console.log("Loading US Cities database...")
+        const usConfig = {
+            complete: (results) => {
+                console.log('US Cities parsing complete')
+                results.data.shift()
+                setUsData(results.data)
+            },
+            download: true,
+            error: (error, file) => {
+                console.error('Error parsing US cities:', error, file);
+            },
+            };
+        
+        readString(usCSV, usConfig);
+    
+        console.log("Loading World Cities database...")
+        const worldConfig = {
+            complete: (results) => {
+                console.log('World cities parsing complete')
+                results.data.shift()
+                setWorldData(results.data)
+            },
+            download: true,
+            error: (error, file) => {
+                console.error('Error parsing world cities:', error, file);
+            },
+            };
+        
+        readString(worldCSV, worldConfig);
+
+    }, [])
 
     const onLoad = React.useCallback((map) => {
       const places_service = new window.google.maps.places.PlacesService(map)
@@ -135,7 +163,7 @@ function Main() {
       setShowMarkers(true)
       setShowDiagram(true)
       setIsNearbySearch(true)
-      setCitiesData(null)
+      setUsData(null)
     }, [])
 
   const fetchNearby = (type) => {
@@ -176,7 +204,6 @@ function Main() {
         
         places.textSearch(request, (results, status) => {
             if (status === window.google.maps.places.PlacesServiceStatus.OK) {
-                console.log(results)
                 createMarkers(results)
             } else {
                 console.error("There was a problem with the places request");
@@ -210,7 +237,6 @@ function Main() {
         if(!min_lng || lng < min_lng) min_lng = lng;
         if(!max_lng || lng > max_lng) max_lng = lng;
 
-        console.log(results[place].name, lng, lat)
         points.push([lng, lat])
     }
 
@@ -219,7 +245,7 @@ function Main() {
     setVoronoiBounds([min_lng - 0.01, min_lat - 0.01, max_lng + 0.01, max_lat + 0.01])
   }
 
-  const createCitiesMarkers = (cities) => {
+  const createCitiesMarkers = (cities, isWorld) => {
     resetMarkers()
     const new_markers = []
 
@@ -228,13 +254,21 @@ function Main() {
     let max_lat = null;
     let min_lng = null;
     let max_lng = null;
+    let i = 0;
     for(const city of cities) {
+        let lat;
+        let lng;
+        if(isWorld) {
+            lat = parseFloat(city[2])
+            lng = parseFloat(city[3])
 
-        const lat = parseFloat(city[6])
-        const lng = parseFloat(city[7])
-
-        new_markers.push(<Marker key={city[1] + city[8]} position={{ lat, lng }} />)
-
+            new_markers.push(<Marker key={i} position={{ lat, lng }} />)
+        } else {
+            lat = parseFloat(city[6])
+            lng = parseFloat(city[7])
+    
+            new_markers.push(<Marker key={i} position={{ lat, lng }} />)
+        }
 
         if(!min_lat || lat < min_lat) min_lat = lat;
         if(!max_lat || lat > max_lat) max_lat = lat;
@@ -242,6 +276,7 @@ function Main() {
         if(!max_lng || lng > max_lng) max_lng = lng;
 
         points.push([lng, lat])
+        i++
     }
 
     setMarkers(new_markers)
@@ -285,7 +320,7 @@ function Main() {
 
       // Reverse Geocoding to find state name
       resetMap()
-      console.log("Reverse geocoding");
+      console.log("Reverse geocoding...");
       const request = {
           location: map.center
       }
@@ -300,27 +335,26 @@ function Main() {
                   
                 }
                 if(area.types.includes("country")) {
-                    if(area.address_components[0].short_name !== "US") {
-                        console.error("Cannot add city markers outside the US")
-                        alert("Cannot add city markers outside the US")
-                        return;
+                    country = {
+                        short: area.address_components[0].short_name,
+                        long: area.address_components[0].long_name
                     }
-                    country = area.address_components[0].short_name
                 }
             }
 
             if(state && isState) {
-                const state_cities = citiesData.filter(city => city[3] === state && parseInt(city[8]) >= 1000 )
+                const state_cities = usData.filter(city => city[3] === state && parseInt(city[8]) >= 1000 )
     
-                createCitiesMarkers(state_cities)
+                createCitiesMarkers(state_cities, false)
             } else if (country && !isState) {
-                console.log(country)
-
-                const country_cities = citiesData.filter(city => parseInt(city[8]) >= 5000 )
-    
-                console.log(country_cities)
-                
-                createCitiesMarkers(country_cities)
+                let country_cities = []
+                if(country.short === "US") {
+                    country_cities = usData.filter(city => parseInt(city[8]) >= 5000 )
+                    createCitiesMarkers(country_cities, false)
+                } else {
+                    country_cities = worldData.filter(city => city[4] === country.long || city[5] === country.short || city[6] === country.short)
+                    createCitiesMarkers(country_cities, true)
+                } 
             } else {
                 console.error("Cannot add city markers here")
                 alert("Cannot add city markers here")
@@ -334,8 +368,6 @@ function Main() {
   }
 
   const generateVoronoi = () => {
-      //cities generating range: 7+
-      console.log(map)
       if(markers.length === 0) {
           console.error("Must generate some markers on the graph first!")
           alert("Must generate some markers on the graph first!")
