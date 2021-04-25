@@ -112,10 +112,9 @@ function Main() {
             
             readString(citiesCSV, papaConfig);
         }
-    }, [])
+    }, [citiesData])
 
     const onLoad = React.useCallback((map) => {
-      console.log(window.google.maps)
       const places_service = new window.google.maps.places.PlacesService(map)
       const geocoder_service = new window.google.maps.Geocoder()
       setPlaces(places_service)
@@ -127,7 +126,16 @@ function Main() {
       setMap(null)
       setPlaces(null)
       setValue('')
-      resetMap()
+      setGeocoder(null)
+      setMarkers([])
+      setPoints([])
+      setVoronoiBounds([])
+      setCircles([])
+      setPolygons([])
+      setShowMarkers(true)
+      setShowDiagram(true)
+      setIsNearbySearch(true)
+      setCitiesData(null)
     }, [])
 
   const fetchNearby = (type) => {
@@ -267,19 +275,11 @@ function Main() {
     setShowMarkers(true)
   }
 
-  const filterCities = (state) => {
-    console.log(state)
-    // Filter cities by state and population at least 1000
-    const state_cities = citiesData.filter(city => city[3] === state && parseInt(city[8]) >= 1000 )
-    
-    createCitiesMarkers(state_cities)
-    console.log(state_cities)
-  }
-
-  const getStateCities = () => {
-      if(map.zoom < 7) {
-          console.error("Map is not zoomed in enough to fetch cities for current state");
-          alert("Map is not zoomed in enough to fetch cities for current state");
+  const getCities = (isState) => {
+      if(map.zoom < (isState ? 7 : 4)) {
+          const word = isState ? "state" : "country"
+          console.error(`Map is not zoomed in enough to fetch cities for current ${word}.`);
+          alert(`Map is not zoomed in enough to fetch cities for current ${word}.`);
           return;
       }
 
@@ -291,9 +291,9 @@ function Main() {
       }
       
       geocoder.geocode(request, (results, status) => {
-
           if (status === "OK") {
             let state;
+            let country;
             for(const area of results) {
                 if(area.types.includes("administrative_area_level_1")) {
                     state = area.address_components[0].long_name
@@ -305,18 +305,29 @@ function Main() {
                         alert("Cannot add city markers outside the US")
                         return;
                     }
+                    country = area.address_components[0].short_name
                 }
             }
 
-            if(state) {
-                filterCities(state)
+            if(state && isState) {
+                const state_cities = citiesData.filter(city => city[3] === state && parseInt(city[8]) >= 1000 )
+    
+                createCitiesMarkers(state_cities)
+            } else if (country && !isState) {
+                console.log(country)
+
+                const country_cities = citiesData.filter(city => parseInt(city[8]) >= 5000 )
+    
+                console.log(country_cities)
+                
+                createCitiesMarkers(country_cities)
             } else {
-                console.error("Cannot add city markers outside the US")
-                alert("Cannot add city markers outside the US")
+                console.error("Cannot add city markers here")
+                alert("Cannot add city markers here")
             }
           } else {
-              console.error("There was a problem with the places request: ", status);
-              alert("There was a problem with the places request: ", status)
+              console.error("There was a problem with the geocoding request: ", status);
+              alert("There was a problem with the geocoding request: ", status)
           }           
       })
 
@@ -344,7 +355,7 @@ function Main() {
           new_polygons.push(createPolygon(polygon, i))
           new_circles.push(<Circle 
                                 key={i} 
-                                radius={3} 
+                                radius={markers.length > 100 ? 10 : 3} 
                                 center={{ lat: points[i][1], lng: points[i][0]}} 
                                 options={circleOptions}
                             />)
@@ -408,8 +419,8 @@ function Main() {
         </Form>
         
         <ButtonGroup className="cities-buttons">
-            <Button onClick={getStateCities} variant="info">Add State Cities Markers</Button>
-            <Button variant="info">Add Country Cities Markers</Button> 
+            <Button onClick={() => getCities(true)} variant="info">Add State Cities Markers</Button>
+            <Button onClick={() => getCities(false)} variant="info">Add Country Cities Markers</Button> 
         </ButtonGroup>
 
         </div>
