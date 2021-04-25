@@ -8,7 +8,8 @@ Lastly, you can get all of the cities above a certain population threshold in a 
 
 Since it is not easy to get a list of cities in a state using the Google Maps API, US cities and World cities are provided by simplemaps:
 
-US Cities: https://simplemaps.com/data/us-cities
+US Cities: https://simplemaps.com/data/us-cities 
+
 World Cities: https://simplemaps.com/data/world-cities
 
 # Installation
@@ -16,3 +17,4 @@ World Cities: https://simplemaps.com/data/world-cities
 1. Run `npm install` to get the project dependencies
 2. Create a file `secret.js` following the template in `secret.example.js` and add your Google Maps API key and project id. The API Key should have the Maps, Places, and Geocoding APIs enabled.
 3. Get the cities data from the URLs provided, and add them to a `data` folder inside of `src` as `uscities.csv` and `worldcities.csv`
+4. Start the local client with `npm start`
