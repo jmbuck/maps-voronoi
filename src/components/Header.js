@@ -3,7 +3,7 @@ import '../css/Header.css';
 
 function Header() {
   return (
-    <Navbar bg="dark" variant="dark">
+    <Navbar className="Header" bg="dark" variant="dark">
         <Navbar.Brand>Voronoi Maps</Navbar.Brand>
 
     </Navbar>

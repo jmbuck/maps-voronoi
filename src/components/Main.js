@@ -3,6 +3,7 @@ import { key, id } from '../secret'
 
 import React from 'react'
 import Button from 'react-bootstrap/Button'
+import ButtonGroup from 'react-bootstrap/ButtonGroup'
 
 import Form from 'react-bootstrap/Form'
 import FormControl from 'react-bootstrap/FormControl'
@@ -15,8 +16,8 @@ const containerStyle = {
 };
   
 const center = {
-    lat: -40.425,
-    lng: -86.908
+    lat: 40.4286588,
+    lng: -86.8987302
 };
 
 
@@ -50,6 +51,19 @@ const circleOptions = {
     zIndex: 1
 }
 
+/* TODO Friday:
+    Sort out bug with odd diagram for subsequent requests
+    Clean up console prints
+    Add geometric representation
+    Add city support
+    Improve UI/UX
+    Get more results (?)
+    Etc etc
+
+
+
+
+*/
 function Main() {
 
     const { isLoaded } = useJsApiLoader({
@@ -69,26 +83,25 @@ function Main() {
     const [showMarkers, setShowMarkers] = React.useState(true)
     const [showDiagram, setShowDiagram] = React.useState(true)
 
-    const onLoad = React.useCallback(function callback(map) {
-      const bounds = new window.google.maps.LatLngBounds();
-      map.fitBounds(bounds);
-
+    const onLoad = React.useCallback((map) => {
       const service = new window.google.maps.places.PlacesService(map)
       setPlaces(service)
       setMap(map)
     }, [])
   
-    const onUnmount = React.useCallback(function callback(map) {
+    const onUnmount = React.useCallback(() => {
       setMap(null)
       setPlaces(null)
       setValue('')
-      clearDiagram()
-      clearMarkers()
+      resetMap()
     }, [])
 
   const fetchNearby = (type) => {
     if(map.zoom >= 12) {
+        resetMap()
         console.log("Fetching for places of type ", type);
+        console.log(map.center.lat(), map.center.lng())
+        console.log(map.zoom)
         const request = {
             location: map.center,
             radius: 3000,
@@ -101,17 +114,21 @@ function Main() {
                 createMarkers(results)
             } else {
                 console.error("There was a problem with the places request");
+                alert("There was a problem with the places request")
             }           
         })
 
     } else {
-        console.log("Map is not zoomed in enough to fetch nearby places! TODO: implemented easy error alert");
+        console.error("Map is not zoomed in enough to fetch nearby places!");
+        alert("Map is not zoomed in enough to fetch nearby places!");
     }
   }
 
   const createMarkers = (results) => {
+    
+    resetMarkers()
     const new_markers = []
-    const new_points = []
+
     //lat is considered y coord, lng is x coord
     let min_lat = null;
     let max_lat = null;
@@ -130,6 +147,7 @@ function Main() {
         console.log(results[place].name, lng, lat)
         points.push([lng, lat])
     }
+
     setMarkers(new_markers)
     setPoints(points)
     setVoronoiBounds([min_lng - 0.01, min_lat - 0.01, max_lng + 0.01, max_lat + 0.01])
@@ -141,24 +159,36 @@ function Main() {
             paths.push({lat: point[1], lng: point[0] })
         }
         return <Polygon key={key} paths={paths} options={options} />
+    }
+
+  const resetMap = () => {
+    resetDiagram()
+    resetMarkers()
   }
 
-  const clearMarkers = () => {
-    setMarkers([])
-  }
-
-  const clearDiagram = () => {
+  const resetDiagram = () => {
     setPolygons([])
     setCircles([])
+    setPoints([])
+    setShowDiagram(true)
+  }
+
+  const resetMarkers = () => {
+    setMarkers([])
+    setPoints([])
+    setShowMarkers(true)
   }
 
   const generateVoronoi = () => {
+      console.log(map)
       if(markers.length == 0) {
-          console.log("Must generate some markers on the graph first!")
+          console.error("Must generate some markers on the graph first!")
+          alert("Must generate some markers on the graph first!")
           return;
       }
 
-      console.log("Generating voronoi diagram...")
+      resetDiagram()
+
       const delaunay = Delaunay.from(points)
       const voronoi = delaunay.voronoi(voronoi_bounds)
 
@@ -183,32 +213,42 @@ function Main() {
 
   return (
     <div className="Main">
+        <div className="Map">
         {
            isLoaded && 
            <GoogleMap
                 mapContainerStyle={containerStyle}
                 center={center}
-                zoom={3}
+                zoom={13}
                 onLoad={onLoad}
                 onUnmount={onUnmount}
            >
-           { markers.length > 0 ? markers.map(el => el) : [] }
-           { circles.length > 0 ? circles.map(el => el) : [] }
-           { polygons.length > 0 ? polygons.map(el => el) : [] }
+           { markers.length > 0 && showMarkers ? markers.map(el => el) : [] }
+           { circles.length > 0 && showDiagram ? circles.map(el => el) : [] }
+           { polygons.length > 0 && showDiagram ? polygons.map(el => el) : [] }
            </GoogleMap>
         }
+
         <Form onSubmit={(ev) => {
             ev.preventDefault();
             fetchNearby(value);
-            
         }}
         className="search-form" inline>
             <FormControl onChange={(ev) => {setValue(ev.target.value)}} name="type" type="text" placeholder="Enter a place type (e.g. hospitals)" className="search-box mr-sm-2" />
-            <Button type="submit" variant="outline-info">Find Places</Button>
+            <Button type="submit" variant="info">Find Places</Button>
         </Form>
-        <Button onClick={generateVoronoi} variant="outline-info">Generate Voronoi Diagram</Button>
-        <Button onClick={clearMarkers} variant="outline-info">Clear Markers</Button>
-        <Button onClick={clearDiagram} variant="outline-info">Clear Voronoi Diagram</Button>
+        </div>
+
+        <ButtonGroup>
+            <Button onClick={generateVoronoi} variant="primary">Generate Voronoi Diagram</Button>
+            <Button onClick={() => setShowMarkers(!showMarkers)} variant="secondary">
+                {showMarkers ? 'Hide Markers' : 'Show Markers'}
+            </Button>
+            <Button onClick={() => setShowDiagram(!showDiagram)} variant="secondary">
+                {showDiagram ? 'Hide Voronoi Diagram' : 'Show Voronoi Diagram'}
+            </Button>
+            <Button onClick={resetMap} variant="danger">Reset Map</Button>
+        </ButtonGroup>
     </div>
   );
 }
