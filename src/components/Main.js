@@ -7,7 +7,7 @@ import ButtonGroup from 'react-bootstrap/ButtonGroup'
 
 import Form from 'react-bootstrap/Form'
 import FormControl from 'react-bootstrap/FormControl'
-import InputGroup from 'react-bootstrap/InputGroup'
+
 import { GoogleMap, Marker, useJsApiLoader, Polygon, Circle } from '@react-google-maps/api'
 import { Delaunay } from 'd3-delaunay'
 
@@ -76,6 +76,7 @@ function Main() {
     const [map, setMap] = React.useState(null)
     const [value, setValue] = React.useState('')
     const [places, setPlaces] = React.useState(null)
+    const [geocoder, setGeocoder] = React.useState(null)
     const [markers, setMarkers] = React.useState([])
     const [points, setPoints] = React.useState([])
     const [voronoi_bounds, setVoronoiBounds] = React.useState([])
@@ -86,8 +87,11 @@ function Main() {
     const [isNearbySearch, setIsNearbySearch] = React.useState(true)
 
     const onLoad = React.useCallback((map) => {
-      const service = new window.google.maps.places.PlacesService(map)
-      setPlaces(service)
+      console.log(window.google.maps)
+      const places_service = new window.google.maps.places.PlacesService(map)
+      const geocoder_service = new window.google.maps.Geocoder()
+      setPlaces(places_service)
+      setGeocoder(geocoder_service)
       setMap(map)
     }, [])
   
@@ -205,9 +209,45 @@ function Main() {
     setShowMarkers(true)
   }
 
+  const filterCities = (state) => {
+
+  }
+
+  const getStateCities = () => {
+      if(map.zoom < 7) {
+          console.error("Map is not zoomed in enough to fetch cities for current state");
+          alert("Map is not zoomed in enough to fetch cities for current state");
+          return;
+      }
+
+      // Reverse Geocoding to find state name
+      resetMap()
+      console.log("Reverse geocoding");
+      const request = {
+          location: map.center
+      }
+      
+      geocoder.geocode(request, (results, status) => {
+
+          if (status === "OK") {
+            for(const area of results) {
+                if(area.types.includes("administrative_area_level_1")) {
+                    const state = area.address_components[0].long_name
+                    filterCities(state)
+                }
+            }
+          } else {
+              console.error("There was a problem with the places request: ", status);
+              alert("There was a problem with the places request: ", status)
+          }           
+      })
+
+  }
+
   const generateVoronoi = () => {
+      //cities generating range: 7+
       console.log(map)
-      if(markers.length == 0) {
+      if(markers.length === 0) {
           console.error("Must generate some markers on the graph first!")
           alert("Must generate some markers on the graph first!")
           return;
@@ -288,7 +328,14 @@ function Main() {
                 className="search-box mr-sm-2" />
             <Button type="submit" variant="info">Find Places</Button>
         </Form>
+        
+        <ButtonGroup className="cities-buttons">
+            <Button onClick={getStateCities} variant="info">Add State Cities Markers</Button>
+            <Button variant="info">Add Country Cities Markers</Button> 
+        </ButtonGroup>
+
         </div>
+
 
         <ButtonGroup>
             <Button onClick={generateVoronoi} variant="primary">Generate Voronoi Diagram</Button>
